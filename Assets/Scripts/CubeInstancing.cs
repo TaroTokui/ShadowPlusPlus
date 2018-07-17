@@ -93,16 +93,11 @@ public class CubeInstancing : MonoBehaviour
     [SerializeField]
     float tmpPuls = 0.0f;
 
-    /// 音声入力
-    float _InputLow = 0.0f;
-    float _InputMid = 0.0f;
-    float _InputHigh = 0.0f;
-    float _InputKickdetection = 0.0f;
-    float _InputSnaredetection = 0.0f;
-    float _InputRythm = 0.0f;
-    float _InputSpectralcentroid = 0.0f;
-    float _InputFmp = 0.0f;
-    float _InputSmp = 0.0f;
+    [SerializeField]
+    int onIndex = -1;
+
+    [SerializeField]
+    int offIndex = -1;
 
     #endregion // Serialize Fields
 
@@ -112,6 +107,7 @@ public class CubeInstancing : MonoBehaviour
     ComputeBuffer _CubeDataBuffer;
     ComputeBuffer _BaseCubeDataBuffer;
     ComputeBuffer _PrevCubeDataBuffer;
+    //ComputeBuffer _CubeActiveListBuffer;
 
     /// GPU Instancingの為の引数
     uint[] _GPUInstancingArgs = new uint[5] { 0, 0, 0, 0, 0 };
@@ -126,11 +122,26 @@ public class CubeInstancing : MonoBehaviour
 
     private Texture2D m_texture;
 
+    int[] _ActiveFlags;
+
     #endregion // Private Fields
 
     // --------------------------------------------------
     #region // MonoBehaviour Methods
+
+    private void OnEnable()
+    {
+        _instanceCount = _instanceCountX * _instanceCountY;
+
+        //_ActiveFlags = new int[_instanceCount];
+        //for (int i = 0; i < _instanceCount; i++)
+        //{
+        //    _ActiveFlags[i] = (i%2==1)?1:-1;
+        //    Debug.Log(_ActiveFlags[i]);
+        //}
         
+    }
+
     void Start()
     {
         ResetCubes();
@@ -138,12 +149,11 @@ public class CubeInstancing : MonoBehaviour
 
     private void ResetCubes()
     {
-        _instanceCount = _instanceCountX * _instanceCountY;
-
         // allocate buffers
         _CubeDataBuffer = new ComputeBuffer(_instanceCount, Marshal.SizeOf(typeof(CubeData)));
         _BaseCubeDataBuffer = new ComputeBuffer(_instanceCount, Marshal.SizeOf(typeof(CubeData)));
         _PrevCubeDataBuffer = new ComputeBuffer(_instanceCount, Marshal.SizeOf(typeof(CubeData)));
+        //_CubeActiveListBuffer = new ComputeBuffer(_instanceCount, Marshal.SizeOf(typeof(bool)));
         _GPUInstancingArgsBuffer = new ComputeBuffer(1, _GPUInstancingArgs.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
         
         // init cube position
@@ -169,21 +179,23 @@ public class CubeInstancing : MonoBehaviour
         
         // ComputeShader
         kernelId = _ComputeShader.FindKernel("Update");
-        _ComputeShader.SetFloat("_Time", Time.time / 5.0f * _Speed);
         _ComputeShader.SetInt("_Width", _instanceCountX);
         _ComputeShader.SetInt("_Height", _instanceCountY);
         _ComputeShader.SetFloat("_Phi", _Phi);
         _ComputeShader.SetFloat("_Lambda", _Lambda);
         _ComputeShader.SetFloat("_Amplitude", _Amplitude);
         _ComputeShader.SetFloat("_StepX", _CubeMeshStep.x);
-        _ComputeShader.SetFloat("_StepY", _CubeMeshStep.y);
+        _ComputeShader.SetFloat("_StepY", _CubeMeshStep.y); 
         _ComputeShader.SetFloat("_StepZ", _CubeMeshStep.z);
-        _ComputeShader.SetFloat("_InputLow", _InputLow);
-        _ComputeShader.SetFloat("_InputMid", _InputMid);
-        _ComputeShader.SetFloat("_InputHigh", _InputHigh);
-        _ComputeShader.SetFloat("_InputKick", _InputKickdetection);
-        _ComputeShader.SetFloat("_InputSnare", _InputSnaredetection);
-        _ComputeShader.SetFloat("_InputRythm", _InputRythm);
+        _ComputeShader.SetInt("_OnIndex", onIndex);
+        _ComputeShader.SetInt("_OffIndex", offIndex);
+        //_ComputeShader.SetFloat("_InputLow", _InputLow);
+        //_ComputeShader.SetFloat("_InputMid", _InputMid);
+        //_ComputeShader.SetFloat("_InputHigh", _InputHigh);
+        //_ComputeShader.SetFloat("_InputKick", _InputKickdetection);
+        //_ComputeShader.SetFloat("_InputSnare", _InputSnaredetection);
+        //_ComputeShader.SetFloat("_InputRythm", _InputRythm);
+        //_ComputeShader.SetInts("_ActiveFlags", _ActiveFlags);
         _ComputeShader.SetBuffer(kernelId, "_CubeDataBuffer", _CubeDataBuffer);
         _ComputeShader.SetBuffer(kernelId, "_BaseCubeDataBuffer", _BaseCubeDataBuffer);
         _ComputeShader.SetBuffer(kernelId, "_PrevCubeDataBuffer", _PrevCubeDataBuffer);

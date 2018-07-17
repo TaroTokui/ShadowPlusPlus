@@ -1,7 +1,6 @@
 ﻿#pragma kernel Init
 #pragma kernel Update
-#pragma kernel UpdateFlat
-#pragma kernel UpdateSimpleNoise
+//#pragma kernel AddAndRemove
 
 // スレッドグループのスレッドサイズ
 #define ThreadBlockSize 256
@@ -24,6 +23,7 @@ RWStructuredBuffer<CubeData> _CubeDataBuffer;
 RWStructuredBuffer<CubeData> _BaseCubeDataBuffer;
 RWStructuredBuffer<CubeData> _PrevCubeDataBuffer;
 RWStructuredBuffer<float3> _MeshVerticesBuffer;
+//RWStructuredBuffer<bool> _CubeActiveListBuffer;
 Texture2D<float4> _NoiseTex;
 int _Width;
 int _Height;
@@ -32,10 +32,8 @@ float _Height2;
 float _StepX;
 float _StepY;
 float _StepZ;
-int _MeshVertexCount;
-
-// 経過時間
-//float _Time;
+int _OnIndex;
+int _OffIndex;
 
 // 位相差
 float _Phi;
@@ -50,12 +48,7 @@ float _Amplitude;
 float _Gravity;
 
 // inputs
-float _InputLow;
-float _InputMid;
-float _InputHigh;
-float _InputKick;
-float _InputSnare;
-float _InputRythm;
+//int _ActiveFlags[45];
 
 float3 hsv2rgb(float3 c)
 {
@@ -76,7 +69,7 @@ void Init(uint3 id : SV_DispatchThreadID)
 	float z = -1.2;
 
 	_CubeDataBuffer[index].Velocity = float3(0, 0, 0);
-	_CubeDataBuffer[index].isActive = true;
+	_CubeDataBuffer[index].isActive = index%2 == 1;
 
 	_BaseCubeDataBuffer[index].Position = float3(x - _Width2, y - _Height2, z);
 	_BaseCubeDataBuffer[index].Rotation = RandomVector(index) / 2.0;
@@ -88,6 +81,7 @@ void Init(uint3 id : SV_DispatchThreadID)
 	_PrevCubeDataBuffer[index].Velocity = float3(0, 0, 0);
 
 }
+
 
 [numthreads(ThreadBlockSize, 1, 1)]
 void Update(uint3 id : SV_DispatchThreadID)
@@ -104,6 +98,15 @@ void Update(uint3 id : SV_DispatchThreadID)
 
 	//float4 noise = _NoiseTex[basePos.xz + float2(_Width / 2.0, _Height / 2.0)];
 
+	if (_OnIndex == index)
+	{
+		_CubeDataBuffer[index].isActive = true;
+	}
+	if (_OffIndex == index)
+	{
+		_CubeDataBuffer[index].isActive = false;
+	}
+
 	if (_CubeDataBuffer[index].isActive)
 	{
 		pos = basePos * float3(_StepX, _StepY, _StepZ);
@@ -112,53 +115,24 @@ void Update(uint3 id : SV_DispatchThreadID)
 		pos = basePos + float3(0, 0, 10);
 	}
 
-	//float y = _Amplitude * (1 + sin(basePos.x / _Lambda + _Phi * _Time)) * Random(index);
-	//y += _Amplitude * (1 + sin(basePos.z / _Lambda + _Phi * _Time)) * Random(index + 1);
-	//y *= noise * 10 * _StepY;
-
-	//y = lerp(y, prevPos.y, 0.99);
+	//pos = basePos * float3(_StepX, _StepY, _StepZ) + float3(0,0, _ActiveFlags[index]);
 
 	rot += prevRot * 0.1;
-
-
-	//float hue = ((noise.x + noise.y) * 1.0 + _Amplitude * 2) / (4 * _Amplitude);
 
 
 	_PrevCubeDataBuffer[index].Position = pos;// float3(pos.x, y, pos.z);
 	_CubeDataBuffer[index].Position = pos;// float3(pos.x, y, pos.z);
 	_CubeDataBuffer[index].Rotation = rot;
 	_CubeDataBuffer[index].Albedo = albedo;
-	//_CubeDataBuffer[index].Albedo = float3(hsv2rgb(float3(hue, 1, 1)));
 }
 
-[numthreads(ThreadBlockSize, 1, 1)]
-void UpdateFlat(uint3 id : SV_DispatchThreadID)
-{
-	// インデックス取得
-	const unsigned int index = id.x;
-
-	_CubeDataBuffer[index].Position = _BaseCubeDataBuffer[index].Position;
-	_CubeDataBuffer[index].Rotation = float3(0, 0, 0);
-}
-
-
-[numthreads(ThreadBlockSize, 1, 1)]
-void UpdateSimpleNoise(uint3 id : SV_DispatchThreadID)
-{
-	// インデックス取得
-	const unsigned int index = id.x;
-	float3 basePos = _BaseCubeDataBuffer[index].Position;
-	float4 noise = _NoiseTex[basePos.xz + float2(_Width2, _Height2)];
-	//float4 noise = _NoiseTex[basePos.xz + float2(_Width / 2, _Height / 2)] * sin(basePos.x * _InputLow * 0.1);
-	float3 prevPos = _CubeDataBuffer[index].Position;
-
-	float3 pos = lerp(float3(basePos.x, noise.x * 20 * _Amplitude, basePos.z), prevPos, 0.9);
-
-	//_PrevCubeDataBuffer[index].Position = pos;// float3(pos.x, y, pos.z);
-	_CubeDataBuffer[index].Position = pos;// float3(basePos.x, noise.x * 20 * _Amplitude, basePos.z);
-										  //_CubeDataBuffer[index].Rotation = float3(noise.x * 10, noise.x * 20, noise.x * 30);
-	_CubeDataBuffer[index].Rotation = float3(0, 0, 0);
-}
+//[numthreads(ThreadBlockSize, 1, 1)]
+//void AddAndRemove(uint3 id : SV_DispatchThreadID)
+//{
+//	// インデックス取得
+//	const unsigned int index = id.x;
+//	_CubeDataBuffer[index].isActive = _CubeActiveListBuffer[index];
+//}
 
 float3 Sylinder(float x, float y, float s)
 {
