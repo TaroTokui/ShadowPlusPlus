@@ -122,7 +122,7 @@ public class CubeInstancing : MonoBehaviour
 
     private Texture2D m_texture;
 
-    int[] _ActiveFlags;
+    private Vector3 parentOffset;
 
     #endregion // Private Fields
 
@@ -132,14 +132,9 @@ public class CubeInstancing : MonoBehaviour
     private void OnEnable()
     {
         _instanceCount = _instanceCountX * _instanceCountY;
-
-        //_ActiveFlags = new int[_instanceCount];
-        //for (int i = 0; i < _instanceCount; i++)
-        //{
-        //    _ActiveFlags[i] = (i%2==1)?1:-1;
-        //    Debug.Log(_ActiveFlags[i]);
-        //}
         
+        parentOffset = gameObject.transform.parent.transform.position;
+        //Debug.Log(gameObject.transform.parent.name);
     }
 
     void Start()
@@ -189,6 +184,9 @@ public class CubeInstancing : MonoBehaviour
         _ComputeShader.SetFloat("_StepZ", _CubeMeshStep.z);
         _ComputeShader.SetInt("_OnIndex", onIndex);
         _ComputeShader.SetInt("_OffIndex", offIndex);
+        _ComputeShader.SetFloat("_OffsetX", parentOffset.x);
+        _ComputeShader.SetFloat("_OffsetY", parentOffset.y);
+        _ComputeShader.SetFloat("_OffsetZ", parentOffset.z);
         //_ComputeShader.SetFloat("_InputLow", _InputLow);
         //_ComputeShader.SetFloat("_InputMid", _InputMid);
         //_ComputeShader.SetFloat("_InputHigh", _InputHigh);

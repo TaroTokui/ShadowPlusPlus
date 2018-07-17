@@ -34,6 +34,9 @@ float _StepY;
 float _StepZ;
 int _OnIndex;
 int _OffIndex;
+float _OffsetX;
+float _OffsetY;
+float _OffsetZ;
 
 // 位相差
 float _Phi;
@@ -95,6 +98,7 @@ void Update(uint3 id : SV_DispatchThreadID)
 	float3 prevRot = _PrevCubeDataBuffer[index].Rotation;
 	float3 albedo = _BaseCubeDataBuffer[index].Albedo;
 	float4 noise = _NoiseTex[basePos.xz + float2(_Width2, _Height2)];
+	float3 offset = float3(_OffsetX, _OffsetY, _OffsetZ);
 
 	//float4 noise = _NoiseTex[basePos.xz + float2(_Width / 2.0, _Height / 2.0)];
 
@@ -121,7 +125,7 @@ void Update(uint3 id : SV_DispatchThreadID)
 
 
 	_PrevCubeDataBuffer[index].Position = pos;// float3(pos.x, y, pos.z);
-	_CubeDataBuffer[index].Position = pos;// float3(pos.x, y, pos.z);
+	_CubeDataBuffer[index].Position = pos + offset;// float3(pos.x, y, pos.z);
 	_CubeDataBuffer[index].Rotation = rot;
 	_CubeDataBuffer[index].Albedo = albedo;
 }
