@@ -1,12 +1,7 @@
 ﻿#pragma kernel Init
 #pragma kernel Update
 #pragma kernel UpdateFlat
-#pragma kernel UpdateGravity
 #pragma kernel UpdateSimpleNoise
-#pragma kernel UpdateShape
-#pragma kernel InitWave
-#pragma kernel UpdateWave
-#pragma kernel CopyBuffer
 
 // スレッドグループのスレッドサイズ
 #define ThreadBlockSize 256
@@ -22,13 +17,12 @@ struct CubeData
 	float3 Velocity;
 	float3 Rotation;
 	float3 Albedo;
+	bool isActive;
 };
 
 RWStructuredBuffer<CubeData> _CubeDataBuffer;
 RWStructuredBuffer<CubeData> _BaseCubeDataBuffer;
 RWStructuredBuffer<CubeData> _PrevCubeDataBuffer;
-RWStructuredBuffer<float> _WaveBuffer;
-RWStructuredBuffer<float> _PrevWaveBuffer;
 RWStructuredBuffer<float3> _MeshVerticesBuffer;
 Texture2D<float4> _NoiseTex;
 int _Width;
@@ -82,15 +76,13 @@ void Init(uint3 id : SV_DispatchThreadID)
 	float z = -1.2;
 
 	_CubeDataBuffer[index].Velocity = float3(0, 0, 0);
+	_CubeDataBuffer[index].isActive = true;
 
 	_BaseCubeDataBuffer[index].Position = float3(x - _Width2, y - _Height2, z);
-	//_BaseCubeDataBuffer[index].Position = float3(x, y, z);
-	//_CubeDataBuffer[index].BasePosition += float3(frac(Random(index)), 0, frac(Random(index+1)));
 	_BaseCubeDataBuffer[index].Rotation = RandomVector(index) / 2.0;
+
 	float hue = (RandomVector(index).x + _Amplitude * 2) / (4 * _Amplitude);
 	_BaseCubeDataBuffer[index].Albedo = float3(hsv2rgb(float3(hue, 1, 1)));
-	//_BaseCubeDataBuffer[index].Albedo = float3(hsv2rgb(float3(0, 1, 1)));
-	//_CubeDataBuffer[index].Albedo = float3(hsv2rgb(float3(hue, 1, 1)));
 
 	_PrevCubeDataBuffer[index].Rotation = _BaseCubeDataBuffer[index].Rotation;
 	_PrevCubeDataBuffer[index].Velocity = float3(0, 0, 0);
@@ -112,7 +104,13 @@ void Update(uint3 id : SV_DispatchThreadID)
 
 	//float4 noise = _NoiseTex[basePos.xz + float2(_Width / 2.0, _Height / 2.0)];
 
-	pos = basePos * float3(_StepX, _StepY, _StepZ);
+	if (_CubeDataBuffer[index].isActive)
+	{
+		pos = basePos * float3(_StepX, _StepY, _StepZ);
+	}
+	else {
+		pos = basePos + float3(0, 0, 10);
+	}
 
 	//float y = _Amplitude * (1 + sin(basePos.x / _Lambda + _Phi * _Time)) * Random(index);
 	//y += _Amplitude * (1 + sin(basePos.z / _Lambda + _Phi * _Time)) * Random(index + 1);
@@ -124,6 +122,7 @@ void Update(uint3 id : SV_DispatchThreadID)
 
 
 	//float hue = ((noise.x + noise.y) * 1.0 + _Amplitude * 2) / (4 * _Amplitude);
+
 
 	_PrevCubeDataBuffer[index].Position = pos;// float3(pos.x, y, pos.z);
 	_CubeDataBuffer[index].Position = pos;// float3(pos.x, y, pos.z);
@@ -140,43 +139,6 @@ void UpdateFlat(uint3 id : SV_DispatchThreadID)
 
 	_CubeDataBuffer[index].Position = _BaseCubeDataBuffer[index].Position;
 	_CubeDataBuffer[index].Rotation = float3(0, 0, 0);
-}
-
-[numthreads(ThreadBlockSize, 1, 1)]
-void UpdateGravity(uint3 id : SV_DispatchThreadID)
-{
-	// インデックス取得
-	const unsigned int index = id.x;
-	float3 basePos = _BaseCubeDataBuffer[index].Position;
-	float4 noise = _NoiseTex[basePos.xz + float2(_Width2, _Height2)];
-
-	float3 prevPos = _CubeDataBuffer[index].Position;
-	float3 prevVel = _CubeDataBuffer[index].Velocity;
-	float3 prevRot = _CubeDataBuffer[index].Rotation;
-	float3 pos = prevPos;
-	float3 vel = prevVel;
-	float3 rot = prevRot;
-
-	// update velocity
-	vel += float3(0, -_Gravity * 0.1, 0);
-
-	// update position
-	pos += vel;
-
-	if (pos.y < 0)
-	{
-		pos.y = 0;
-		vel.y = 0;
-	}
-
-	if (_InputLow < noise.x && pos.y == 0)
-	{
-		vel.y = 3;
-	}
-
-	_CubeDataBuffer[index].Position = pos;// float3(pos.x, y, pos.z);
-	_CubeDataBuffer[index].Velocity = vel;
-	_CubeDataBuffer[index].Rotation = rot;
 }
 
 
@@ -224,138 +186,4 @@ float3 Sphere(float x, float y, float s)
 	dst.y = sin(y * PI2) * s;
 
 	return dst;
-}
-
-float3 RandomMove(float x, float z)
-{
-	float3 dst;
-
-	//float y = _Amplitude * (1 + sin(x / _Lambda + _Phi * _Time)) * Random(index);
-	//y += _Amplitude * (1 + sin(z / _Lambda + _Phi * _Time)) * Random(index + 1);
-	//y *= noise * 10 * _StepY;
-
-	return dst;
-}
-
-[numthreads(ThreadBlockSize, 1, 1)]
-void UpdateShape(uint3 id : SV_DispatchThreadID)
-{
-	float PI = 3.1415926535;
-	float PI2 = 6.28318530718;
-
-	// インデックス取得
-	const unsigned int index = id.x;
-	float3 basePos = _BaseCubeDataBuffer[index].Position;
-	float3 baseRot = _BaseCubeDataBuffer[index].Rotation;
-	float4 noise = _NoiseTex[basePos.xz + float2(_Width2, _Height2)];
-	float3 prevPos = _CubeDataBuffer[index].Position;
-	float3 prevRot = _CubeDataBuffer[index].Rotation;
-	float3 meshPos = _MeshVerticesBuffer[index%_MeshVertexCount];
-
-	float posX = (index % _Width) / (float)_Width;
-	float posY = (index / _Width) / (float)_Height;
-
-	float3 pos = float3(0, 0, 0);
-	float3 rot = float3(0, 0, 0);
-	//rot = float3(noise.x * 10, noise.x * 20, noise.x * 30);
-
-	float wave = _WaveBuffer[index % _Width];// *_Amplitude;
-
-											 // plane
-	pos.x = (posX - 0.5) * 256;
-	pos.z = (posY - 0.5) * 256;
-	//pos.y = (wave) * _Amplitude;
-	pos.y = (wave + noise.x) * _Amplitude;
-
-	// circle
-	pos.x = sin(posX * PI2) * 30;
-	pos.z = cos(posX * PI2) * 30;
-	//pos.y -= 20;
-
-
-	// sylinder
-	pos = Sylinder(posX, posY, 15);
-	pos.y -= 10;
-	pos += wave * normalize(pos) * _Amplitude;
-
-	// sphere
-	//pos = Sphere(posX, posY, 20);
-	//pos.y += wave;
-	//pos += wave * normalize(pos) * _Amplitude;
-
-	// mesh
-	pos = meshPos * 1;
-	//pos.y -= 20;
-	pos += wave * normalize(pos) * _Amplitude;
-
-	// noise direction
-	float3 nn = normalize(pos) * noise.x;
-	pos += nn * _Amplitude * 0.7;
-
-	//rot = float3(noise.x * 10, noise.x * 20, noise.x * 30);
-
-	// update
-	pos = lerp(pos, prevPos, 0.9);
-	rot = lerp(rot, prevRot, 0.99);
-
-	_CubeDataBuffer[index].Position = pos;
-	_CubeDataBuffer[index].Rotation = rot;
-}
-
-
-[numthreads(ThreadBlockSize, 1, 1)]
-void InitWave(uint3 id : SV_DispatchThreadID)
-{
-	const unsigned int index = id.x;
-	_WaveBuffer[index] = 0;
-	_PrevWaveBuffer[index] = 0;
-}
-
-[numthreads(ThreadBlockSize, 1, 1)]
-void UpdateWave(uint3 id : SV_DispatchThreadID)
-{
-	const unsigned int index = id.x;
-
-	// update wave
-	unsigned int length = 5;
-	float value = 0;
-	float a = 1;
-	unsigned int prevIndex = max(0, index - length);
-	//if (_InputKick > 0.5 && posX < 0.1)
-	//if (_InputKick > 0.5 && posX == 0)
-	//_InputSnare, _InputKick
-	if (_InputKick > 0.8)
-	{
-		if (index < length)
-		{
-			value = a;
-			//value = a *(float)index / length;
-			//value = a * (float)index / length;
-		}
-		else
-		{
-			value = _PrevWaveBuffer[prevIndex];
-		}
-		//pos.y = 50;
-	}
-	else {
-		//pos.y = 1;
-		if (index == 0)
-		{
-			value = 0;
-		}
-		else
-		{
-			value = _PrevWaveBuffer[prevIndex];
-		}
-	}
-
-	_WaveBuffer[index] = value;
-}
-
-[numthreads(ThreadBlockSize, 1, 1)]
-void CopyBuffer(uint3 id : SV_DispatchThreadID)
-{
-	const unsigned int index = id.x;
-	_PrevWaveBuffer[index] = _WaveBuffer[index];
 }

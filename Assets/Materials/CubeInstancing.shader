@@ -46,6 +46,7 @@
 		float3 Velocity;
 		float3 Rotation;
 		float3 Albedo;
+		bool isActive;
 	};
 
 	struct Input
